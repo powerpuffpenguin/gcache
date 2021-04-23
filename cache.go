@@ -1,0 +1,25 @@
+package gcache
+
+import "errors"
+
+var (
+	ErrNotExists     = errors.New(`key not exists`)
+	ErrAlreadyClosed = errors.New(`cache already closed`)
+)
+
+type Cache interface {
+	// Add the value to the cache, only when the key does not exist
+	Add(key, value interface{}) (added bool, e error)
+	// Put key value to cache
+	Put(key, value interface{}) (added bool, e error)
+	// Get return cache value, if not exists then return ErrNotExists
+	Get(key interface{}) (value interface{}, e error)
+	// Delete key from cache
+	Delete(key ...interface{}) (changed int, e error)
+	// Len returns the number of cached data
+	Len() (count int, e error)
+	// Clear all cached data
+	Clear() (e error)
+	// Close cache
+	Close() (e error)
+}
