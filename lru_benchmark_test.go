@@ -9,7 +9,7 @@ import (
 	"github.com/powerpuffpenguin/gcache"
 )
 
-func BenchmarkNotFoundAdd(b *testing.B) {
+func BenchmarkLruNotFoundAdd(b *testing.B) {
 	l := gcache.NewLRU(
 		gcache.WithLRUCapacity(b.N),
 	)

@@ -166,14 +166,14 @@ func (l *LRU) Get(key interface{}) (value interface{}, e error) {
 	}
 	ele, exists := l.keys[key]
 	if !exists {
-		e = ErrAlreadyClosed
+		e = ErrNotExists
 		return
 	}
 	v := ele.Value.(*lruValue)
 	if v.IsDeleted() {
 		delete(l.keys, key)
 		l.hot.Remove(ele)
-		e = ErrAlreadyClosed
+		e = ErrNotExists
 		return
 	}
 	value = v.Value
