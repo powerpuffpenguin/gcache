@@ -79,7 +79,46 @@ func (l *LRU) Put(key, value interface{}) (newkey bool, e error) {
 func (l *LRU) Get(key interface{}) (value interface{}, e error) {
 	l.m.Lock()
 	if l.done == 0 {
-		value, e = l.impl.Get(key)
+		var exists bool
+		value, exists = l.impl.Get(key)
+		if !exists {
+			e = ErrNotExists
+		}
+	} else {
+		e = ErrAlreadyClosed
+	}
+	l.m.Unlock()
+	return
+}
+
+// BatchPut pairs to cache
+func (l *LRU) BatchPut(pair ...interface{}) (e error) {
+	l.m.Lock()
+	if l.done == 0 {
+		count := len(pair)
+		for i := 0; i < count; i += 2 {
+			if i+1 < count {
+				l.impl.Put(pair[i], pair[i+1])
+			} else {
+				l.impl.Put(pair[i], nil)
+				break
+			}
+		}
+	} else {
+		e = ErrAlreadyClosed
+	}
+	l.m.Unlock()
+	return
+}
+
+// BatchGet return cache values
+func (l *LRU) BatchGet(key ...interface{}) (vals []Value, e error) {
+	l.m.Lock()
+	if l.done == 0 {
+		vals = make([]Value, len(key))
+		for i, k := range key {
+			vals[i].Value, vals[i].Exists = l.impl.Get(k)
+		}
 	} else {
 		e = ErrAlreadyClosed
 	}

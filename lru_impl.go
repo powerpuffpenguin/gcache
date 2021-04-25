@@ -5,13 +5,13 @@ import (
 	"time"
 )
 
-type lruValue struct {
+type cacheValue struct {
 	Key      interface{}
 	Value    interface{}
 	Deadline time.Time
 }
 
-func (v *lruValue) IsDeleted() bool {
+func (v *cacheValue) IsDeleted() bool {
 	return !v.Deadline.IsZero() &&
 		!v.Deadline.After(time.Now())
 }
@@ -34,7 +34,7 @@ func newLRU(opts *lruOptions) *lru {
 func (l *lru) ClearExpired() {
 	var (
 		ele  *list.Element
-		v    *lruValue
+		v    *cacheValue
 		hot  = l.hot
 		keys = l.keys
 	)
@@ -43,7 +43,7 @@ func (l *lru) ClearExpired() {
 		if ele == nil {
 			break
 		}
-		v = ele.Value.(*lruValue)
+		v = ele.Value.(*cacheValue)
 		if v.IsDeleted() {
 			l.hot.Remove(ele)
 			delete(keys, v.Key)
@@ -57,7 +57,7 @@ func (l *lru) ClearExpired() {
 func (l *lru) Add(key, value interface{}) (newkey bool) {
 	ele, exists := l.keys[key]
 	if exists {
-		v := ele.Value.(*lruValue)
+		v := ele.Value.(*cacheValue)
 		if v.IsDeleted() {
 			newkey = true
 			v.Value = value
@@ -73,12 +73,12 @@ func (l *lru) add(key, value interface{}) {
 	// capacity limit reached, pop front
 	for l.hot.Len() >= l.opts.capacity {
 		ele := l.hot.Front()
-		v := ele.Value.(*lruValue)
+		v := ele.Value.(*cacheValue)
 		delete(l.keys, v.Key)
 		l.hot.Remove(ele)
 	}
 	// new value
-	v := &lruValue{
+	v := &cacheValue{
 		Key:   key,
 		Value: value,
 	}
@@ -89,7 +89,7 @@ func (l *lru) add(key, value interface{}) {
 	return
 }
 func (l *lru) moveHot(ele *list.Element) {
-	v := ele.Value.(*lruValue)
+	v := ele.Value.(*cacheValue)
 	l.hot.Remove(ele)
 	if l.opts.expiry > 0 {
 		v.Deadline = time.Now().Add(l.opts.expiry)
@@ -101,7 +101,7 @@ func (l *lru) Put(key, value interface{}) (newkey bool) {
 	ele, exists := l.keys[key]
 	if exists {
 		// put
-		v := ele.Value.(*lruValue)
+		v := ele.Value.(*cacheValue)
 		if v.IsDeleted() {
 			newkey = true
 		}
@@ -115,18 +115,17 @@ func (l *lru) Put(key, value interface{}) (newkey bool) {
 	return
 }
 
-// Get return cache value, if not exists then return ErrNotExists
-func (l *lru) Get(key interface{}) (value interface{}, e error) {
+// Get return cache value
+func (l *lru) Get(key interface{}) (value interface{}, exists bool) {
 	ele, exists := l.keys[key]
 	if !exists {
-		e = ErrNotExists
 		return
 	}
-	v := ele.Value.(*lruValue)
+	v := ele.Value.(*cacheValue)
 	if v.IsDeleted() {
 		delete(l.keys, key)
 		l.hot.Remove(ele)
-		e = ErrNotExists
+		exists = false
 		return
 	}
 	value = v.Value

@@ -154,4 +154,20 @@ func TestLRU(t *testing.T) {
 	size, e = l.Len()
 	assert.Nil(t, e)
 	assert.Equal(t, size, 0)
+
+	// batch
+	e = l.BatchPut(1, "1", 2)
+	assert.Nil(t, e)
+	size, e = l.Len()
+	assert.Nil(t, e)
+	assert.Equal(t, size, 2)
+	vals, e := l.BatchGet(1, 2, 3)
+	assert.Nil(t, e)
+	assert.Equal(t, len(vals), 3)
+	assert.True(t, vals[0].Exists)
+	assert.Equal(t, vals[0].Value, "1")
+	assert.True(t, vals[1].Exists)
+	assert.Nil(t, vals[1].Value)
+	assert.False(t, vals[2].Exists)
+	assert.Nil(t, vals[2].Value)
 }
