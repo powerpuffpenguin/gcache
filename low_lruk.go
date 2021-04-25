@@ -44,6 +44,7 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 	if exists {
 		return
 	} else if l.history == nil {
+		added = l.lru.Add(key, value)
 		return
 	}
 
@@ -75,9 +76,10 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 func (l *LowLRUK) Put(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	_, exists := l.lru.Get(key)
 	if exists {
-		l.lru.Put(key, value)
+		delkey, delval, deleted = l.lru.Put(key, value)
 		return
 	} else if l.history == nil {
+		delkey, delval, deleted = l.lru.Put(key, value)
 		return
 	}
 
@@ -140,12 +142,12 @@ func (l *LowLRUK) Get(key interface{}) (value interface{}, exists bool) {
 
 // Delete key from cache
 func (l *LowLRUK) Delete(key ...interface{}) (changed int) {
-	changed = l.lru.Delete(key)
+	changed = l.lru.Delete(key...)
 	if l.history != nil {
 		if l.historyOnlyKey {
-			l.history.Delete(key)
+			l.history.Delete(key...)
 		} else {
-			changed += l.history.Delete(key)
+			changed += l.history.Delete(key...)
 		}
 	}
 	return
