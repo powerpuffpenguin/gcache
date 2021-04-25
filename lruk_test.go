@@ -8,7 +8,95 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLRU_1(t *testing.T) {
+func TestLRU_K2(t *testing.T) {
+	var (
+		l gcache.Cache
+		h gcache.LowCache
+	)
+	h = gcache.NewLowLRU(gcache.WithLowLRUCapacity(3))
+	l = gcache.NewLRUK(
+		gcache.WithLRUK(2),
+		gcache.WithLRUKHistoryOnlyKey(true),
+		gcache.WithLRUKHistory(h),
+		gcache.WithLRUKCapacity(3),
+	)
+	count := 1000
+	for i := 0; i < count; i++ {
+		added := l.Add(i, i)
+		assert.False(t, added)
+		size := l.Len()
+		assert.Equal(t, 0, size)
+		size = h.Len()
+		if i < 2 {
+			assert.Equal(t, size, i+1)
+		} else {
+			assert.Equal(t, size, 3)
+		}
+		for j := 0; j < size; j++ {
+			key := i - size + 1 + j
+			_, exists := l.Get(key)
+			assert.False(t, exists)
+		}
+	}
+	for i := 0; i < 4; i++ {
+		added := l.Add(i, i)
+		assert.False(t, added)
+	}
+	for i := 1; i < 4; i++ {
+		added := l.Add(i, i)
+		assert.True(t, added)
+
+		size := l.Len()
+		for j := 0; j < size; j++ {
+			key := i - size + 1 + j
+			val, exists := l.Get(key)
+			assert.True(t, exists)
+			assert.Equal(t, key, val)
+		}
+	}
+	l.Clear()
+	assert.Equal(t, 0, l.Len())
+	assert.Equal(t, 0, h.Len())
+	// history value
+	l = gcache.NewLRUK(
+		gcache.WithLRUK(2),
+		gcache.WithLRUKHistoryOnlyKey(false),
+		gcache.WithLRUKHistory(h),
+		gcache.WithLRUKCapacity(3),
+	)
+	for i := 0; i < 6; i++ {
+		added := l.Add(i, i)
+		assert.True(t, added)
+		if i < 3 {
+			assert.Equal(t, i+1, l.Len())
+
+			val, exists := l.Get(i)
+			assert.True(t, exists)
+			assert.Equal(t, val, i)
+
+			assert.Equal(t, 0, h.Len())
+		} else {
+			assert.Equal(t, i-3+1, h.Len())
+		}
+	}
+	for i := 0; i < 6; i++ {
+		val, exists := l.Get(i)
+		assert.True(t, exists)
+		assert.Equal(t, val, i)
+	}
+
+	for i := 0; i < 6; i++ {
+		val, exists := l.Get(i)
+		if i < 3 {
+			assert.False(t, exists)
+		} else {
+			assert.True(t, exists)
+			assert.Equal(t, val, i)
+		}
+	}
+}
+
+func TestLRU_K1(t *testing.T) {
 	// hot
 	var l gcache.Cache
 	l = gcache.NewLRUK(

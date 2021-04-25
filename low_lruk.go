@@ -8,10 +8,8 @@ type kValue struct {
 
 // A low-level implementation of lruk, use LRUK unless you know exactly what you are doing.
 type LowLRUK struct {
-	opts           lowLRUKOptions
-	history, lru   LowCache
-	historyOnlyKey bool
-	k              int
+	opts         lowLRUKOptions
+	history, lru LowCache
 }
 
 // NewLowLRUK create a low-level lru, use NewLRUK unless you know exactly what you are doing.
@@ -53,7 +51,7 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 		kv := v.(kValue)
 		kv.Count++
 		l.history.Delete(key)
-		if kv.Count >= l.k {
+		if kv.Count >= l.opts.k {
 			added = l.lru.Add(key, value)
 		} else {
 			l.history.Put(key, kv)
@@ -63,7 +61,7 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 			Count: 1,
 			Key:   key,
 		}
-		if !l.historyOnlyKey {
+		if !l.opts.historyOnlyKey {
 			kv.Value = value
 			added = true
 		}
@@ -88,7 +86,7 @@ func (l *LowLRUK) Put(key, value interface{}) (delkey, delval interface{}, delet
 		kv := v.(kValue)
 		kv.Count++
 		l.history.Delete(key)
-		if kv.Count >= l.k {
+		if kv.Count >= l.opts.k {
 			delkey, delval, deleted = l.lru.Put(key, value)
 		} else {
 			l.history.Put(key, kv)
@@ -98,7 +96,7 @@ func (l *LowLRUK) Put(key, value interface{}) (delkey, delval interface{}, delet
 			Count: 1,
 			Key:   key,
 		}
-		if l.historyOnlyKey {
+		if l.opts.historyOnlyKey {
 			l.history.Put(key, kv)
 		} else {
 			kv.Value = value
@@ -120,18 +118,19 @@ func (l *LowLRUK) Get(key interface{}) (value interface{}, exists bool) {
 		value = kv.Value
 		l.history.Delete(key)
 
-		if l.historyOnlyKey {
+		if l.opts.historyOnlyKey {
 			// mov to hot
 			l.history.Put(key, kv)
 		} else {
+			exists = true
 			kv.Count++
-			if kv.Count >= l.k {
+			if kv.Count >= l.opts.k {
 				l.lru.Put(key, kv.Value)
 			} else {
 				l.history.Put(key, kv)
 			}
 		}
-	} else if l.historyOnlyKey {
+	} else if l.opts.historyOnlyKey {
 		l.history.Put(key, kValue{
 			Count: 1,
 			Key:   key,
@@ -144,7 +143,7 @@ func (l *LowLRUK) Get(key interface{}) (value interface{}, exists bool) {
 func (l *LowLRUK) Delete(key ...interface{}) (changed int) {
 	changed = l.lru.Delete(key...)
 	if l.history != nil {
-		if l.historyOnlyKey {
+		if l.opts.historyOnlyKey {
 			l.history.Delete(key...)
 		} else {
 			changed += l.history.Delete(key...)
@@ -156,7 +155,7 @@ func (l *LowLRUK) Delete(key ...interface{}) (changed int) {
 // Len returns the number of cached data
 func (l *LowLRUK) Len() int {
 	count := l.lru.Len()
-	if l.history != nil && !l.historyOnlyKey {
+	if l.history != nil && !l.opts.historyOnlyKey {
 		count += l.history.Len()
 	}
 	return count
