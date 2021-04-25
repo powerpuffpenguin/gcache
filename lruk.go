@@ -14,23 +14,30 @@ func NewLRUK(opt ...LRUKOption) (lruk *LRUK) {
 	for _, o := range opt {
 		o.apply(&opts)
 	}
+	// create default lru
+	if opts.lru == nil {
+		opts.lru = NewLowLRU(
+			WithLowLRUCapacity(opts.capacity),
+			WithLowLRUExpiry(opts.expiry),
+		)
+	}
 	// create default history
-	if opts.k == 1 {
-		if opts.history != nil {
-			opts.history = nil
-		}
-	} else if opts.k > 1 && opts.history == nil {
+	if opts.k > 1 && opts.history == nil {
 		capacity := opts.capacity
 		if opts.historyOnlyKey {
 			capacity *= 10
 		}
-		opts.history = NewLowLRU(capacity, opts.expiry)
+		opts.history = NewLowLRU(
+			WithLowLRUCapacity(capacity),
+			WithLowLRUExpiry(opts.expiry),
+		)
 	}
 
 	w := &wrapper{
-		impl: NewLowLRUK(NewLowLRU(opts.capacity, opts.expiry),
-			opts.k, opts.history,
-			opts.historyOnlyKey,
+		impl: NewLowLRUK(
+			opts.history, opts.lru,
+			WithLowLRUK(opts.k),
+			WithLowLRUKHistoryOnlyKey(opts.historyOnlyKey),
 		),
 		closed: make(chan struct{}),
 	}

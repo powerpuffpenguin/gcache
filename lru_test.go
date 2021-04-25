@@ -10,7 +10,8 @@ import (
 
 func TestLRU(t *testing.T) {
 	// hot
-	l := gcache.NewLRU(
+	var l gcache.Cache
+	l = gcache.NewLRU(
 		gcache.WithLRUCapacity(3),
 	)
 	count := 1000

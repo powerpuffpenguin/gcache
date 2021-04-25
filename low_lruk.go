@@ -8,22 +8,25 @@ type kValue struct {
 
 // A low-level implementation of lruk, use LRUK unless you know exactly what you are doing.
 type LowLRUK struct {
-	lru            *LowLRU
-	history        LowCache
+	opts           lowLRUKOptions
+	history, lru   LowCache
 	historyOnlyKey bool
 	k              int
 }
 
 // NewLowLRUK create a low-level lru, use NewLRUK unless you know exactly what you are doing.
-func NewLowLRUK(lru *LowLRU, k int, history LowCache, historyOnlyKey bool) *LowLRUK {
-	if k < 1 {
+func NewLowLRUK(history, lru LowCache, opt ...LowLRUKOption) *LowLRUK {
+	opts := defaultLowLRUKOptions
+	for _, o := range opt {
+		o.apply(&opts)
+	}
+	if opts.k < 2 {
 		history = nil
 	}
 	return &LowLRUK{
-		lru:            lru,
-		history:        history,
-		historyOnlyKey: historyOnlyKey,
-		k:              k,
+		opts:    opts,
+		lru:     lru,
+		history: history,
 	}
 }
 

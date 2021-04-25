@@ -15,7 +15,10 @@ func NewLRU(opt ...LRUOption) (lru *LRU) {
 		o.apply(&opts)
 	}
 	w := &wrapper{
-		impl:   NewLowLRU(opts.capacity, opts.expiry),
+		impl: NewLowLRU(
+			WithLowLRUCapacity(opts.capacity),
+			WithLowLRUExpiry(opts.expiry),
+		),
 		closed: make(chan struct{}),
 	}
 	lru = &LRU{

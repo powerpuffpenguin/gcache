@@ -1,12 +1,5 @@
 package gcache
 
-import "errors"
-
-var (
-	ErrNotExists     = errors.New(`key not exists`)
-	ErrAlreadyClosed = errors.New(`cache already closed`)
-)
-
 type Value struct {
 	Exists bool
 	Value  interface{}
@@ -17,8 +10,8 @@ type Cache interface {
 	Add(key, value interface{}) (added bool)
 	// Put key value to cache
 	Put(key, value interface{}) (added bool)
-	// Get return cache value, if not exists then return ErrNotExists
-	Get(key interface{}) (value interface{})
+	// Get return cache value
+	Get(key interface{}) (value interface{}, exists bool)
 	// BatchPut pairs to cache
 	BatchPut(pair ...interface{})
 	// BatchGet return cache values

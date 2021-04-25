@@ -18,22 +18,21 @@ func (v *cacheValue) IsDeleted() bool {
 
 // A low-level implementation of lru, use LRU unless you know exactly what you are doing.
 type LowLRU struct {
-	capacity int
-	expiry   time.Duration
-	keys     map[interface{}]*list.Element
-	hot      *list.List
+	opts lowLRUOptions
+	keys map[interface{}]*list.Element
+	hot  *list.List
 }
 
 // NewLowLRU create a low-level lru, use NewLRU unless you know exactly what you are doing.
-func NewLowLRU(capacity int, expiry time.Duration) *LowLRU {
-	if capacity < 1 {
-		panic(`lru capacity must > 0`)
+func NewLowLRU(opt ...LowLRUOption) *LowLRU {
+	opts := defaultLowLRUOptions
+	for _, o := range opt {
+		o.apply(&opts)
 	}
 	return &LowLRU{
-		capacity: capacity,
-		expiry:   expiry,
-		keys:     make(map[interface{}]*list.Element, capacity),
-		hot:      list.New(),
+		opts: opts,
+		keys: make(map[interface{}]*list.Element, opts.capacity),
+		hot:  list.New(),
 	}
 }
 func (l *LowLRU) ClearExpired() {
@@ -76,7 +75,7 @@ func (l *LowLRU) Add(key, value interface{}) (added bool) {
 }
 func (l *LowLRU) add(key, value interface{}) {
 	// capacity limit reached, pop front
-	for l.hot.Len() >= l.capacity {
+	for l.hot.Len() >= l.opts.capacity {
 		ele := l.hot.Front()
 		v := ele.Value.(*cacheValue)
 		delete(l.keys, v.Key)
@@ -87,8 +86,8 @@ func (l *LowLRU) add(key, value interface{}) {
 		Key:   key,
 		Value: value,
 	}
-	if l.expiry > 0 {
-		v.Deadline = time.Now().Add(l.expiry)
+	if l.opts.expiry > 0 {
+		v.Deadline = time.Now().Add(l.opts.expiry)
 	}
 	l.keys[key] = l.hot.PushBack(v)
 	return
@@ -96,8 +95,8 @@ func (l *LowLRU) add(key, value interface{}) {
 func (l *LowLRU) moveHot(ele *list.Element) {
 	v := ele.Value.(*cacheValue)
 	l.hot.Remove(ele)
-	if l.expiry > 0 {
-		v.Deadline = time.Now().Add(l.expiry)
+	if l.opts.expiry > 0 {
+		v.Deadline = time.Now().Add(l.opts.expiry)
 	}
 	l.keys[v.Key] = l.hot.PushBack(v)
 }

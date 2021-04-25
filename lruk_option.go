@@ -11,7 +11,7 @@ var defaultLRUKOptions = lrukOptions{
 }
 
 type lrukOptions struct {
-	history        LowCache
+	lru, history   LowCache
 	historyOnlyKey bool
 	expiry         time.Duration
 	capacity       int
@@ -68,7 +68,7 @@ func WithLRUK(k int) LRUKOption {
 	})
 }
 
-// WithLRUKHistory history default use lru
+// WithLowLRUKHistory if history is nil use lru-1, default is nil.
 func WithLRUKHistory(history LowCache) LRUKOption {
 	return newFuncLRUKOption(func(po *lrukOptions) {
 		po.history = history
