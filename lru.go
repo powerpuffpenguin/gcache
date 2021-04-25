@@ -1,28 +1,15 @@
 package gcache
 
 import (
-	"container/list"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-type lruValue struct {
-	Key      interface{}
-	Value    interface{}
-	Deadline time.Time
-}
-
-func (v *lruValue) IsDeleted() bool {
-	return !v.Deadline.IsZero() &&
-		!v.Deadline.After(time.Now())
-}
-
 type LRU struct {
-	opts lruOptions
+	opts *lruOptions
 
-	keys map[interface{}]*list.Element
-	hot  *list.List
+	impl *lru
 
 	ticker *time.Ticker
 
@@ -37,9 +24,8 @@ func NewLRU(opt ...LRUOption) (lru *LRU) {
 		o.apply(&opts)
 	}
 	lru = &LRU{
-		opts:   opts,
-		keys:   make(map[interface{}]*list.Element, opts.capacity),
-		hot:    list.New(),
+		opts:   &opts,
+		impl:   newLRU(&opts),
 		closed: make(chan struct{}),
 	}
 	if opts.expiry > 0 {
@@ -57,135 +43,47 @@ func (l *LRU) clear(ch <-chan time.Time) {
 			return
 		case <-ch:
 			l.m.Lock()
-			l.unsafeClear()
+			if l.done == 0 {
+				l.impl.ClearExpired()
+			}
 			l.m.Unlock()
-		}
-	}
-}
-func (l *LRU) unsafeClear() {
-	var (
-		ele  *list.Element
-		v    *lruValue
-		hot  = l.hot
-		keys = l.keys
-	)
-	if hot == nil {
-		return
-	}
-	for {
-		ele = hot.Front()
-		if ele == nil {
-			break
-		}
-		v = ele.Value.(*lruValue)
-		if v.IsDeleted() {
-			l.hot.Remove(ele)
-			delete(keys, v.Key)
-		} else {
-			break
 		}
 	}
 }
 
 // Add the value to the cache, only when the key does not exist
-func (l *LRU) Add(key, value interface{}) (added bool, e error) {
+func (l *LRU) Add(key, value interface{}) (newkey bool, e error) {
 	l.m.Lock()
-	defer l.m.Unlock()
-	if l.done != 0 {
-		e = ErrAlreadyClosed
-		return
-	}
-	ele, exists := l.keys[key]
-	if exists {
-		v := ele.Value.(*lruValue)
-		if v.IsDeleted() {
-			added = true
-			v.Value = value
-			l.moveHot(ele)
-		}
+	if l.done == 0 {
+		newkey = l.impl.Add(key, value)
 	} else {
-		added = true
-		l.add(key, value)
+		e = ErrAlreadyClosed
 	}
+	l.m.Unlock()
 	return
-}
-func (l *LRU) add(key, value interface{}) {
-	// capacity limit reached, pop front
-	for l.hot.Len() >= l.opts.capacity {
-		ele := l.hot.Front()
-		v := ele.Value.(*lruValue)
-		delete(l.keys, v.Key)
-		l.hot.Remove(ele)
-	}
-	// new value
-	v := &lruValue{
-		Key:   key,
-		Value: value,
-	}
-	if l.opts.expiry > 0 {
-		v.Deadline = time.Now().Add(l.opts.expiry)
-	}
-	l.keys[key] = l.hot.PushBack(v)
-	return
-}
-func (l *LRU) moveHot(ele *list.Element) {
-	v := ele.Value.(*lruValue)
-	l.hot.Remove(ele)
-	if l.opts.expiry > 0 {
-		v.Deadline = time.Now().Add(l.opts.expiry)
-	}
-	l.keys[v.Key] = l.hot.PushBack(v)
 }
 
 // Put key value to cache
-func (l *LRU) Put(key, value interface{}) (added bool, e error) {
+func (l *LRU) Put(key, value interface{}) (newkey bool, e error) {
 	l.m.Lock()
-	defer l.m.Unlock()
-	if l.done != 0 {
-		e = ErrAlreadyClosed
-		return
-	}
-	ele, exists := l.keys[key]
-	if exists {
-		// put
-		v := ele.Value.(*lruValue)
-		if v.IsDeleted() {
-			added = true
-		}
-		v.Value = value
-		// move hot
-		l.moveHot(ele)
+	if l.done == 0 {
+		newkey = l.impl.Put(key, value)
 	} else {
-		added = true
-		l.add(key, value)
+		e = ErrAlreadyClosed
 	}
+	l.m.Unlock()
 	return
 }
 
 // Get return cache value, if not exists then return ErrNotExists
 func (l *LRU) Get(key interface{}) (value interface{}, e error) {
 	l.m.Lock()
-	defer l.m.Unlock()
-	if l.done != 0 {
+	if l.done == 0 {
+		value, e = l.impl.Get(key)
+	} else {
 		e = ErrAlreadyClosed
-		return
 	}
-	ele, exists := l.keys[key]
-	if !exists {
-		e = ErrNotExists
-		return
-	}
-	v := ele.Value.(*lruValue)
-	if v.IsDeleted() {
-		delete(l.keys, key)
-		l.hot.Remove(ele)
-		e = ErrNotExists
-		return
-	}
-	value = v.Value
-
-	// move hot
-	l.moveHot(ele)
+	l.m.Unlock()
 	return
 }
 
@@ -193,18 +91,7 @@ func (l *LRU) Get(key interface{}) (value interface{}, e error) {
 func (l *LRU) Delete(key ...interface{}) (changed int, e error) {
 	l.m.Lock()
 	if l.done == 0 {
-		var (
-			ele    *list.Element
-			exists bool
-		)
-		for _, k := range key {
-			ele, exists = l.keys[k]
-			if exists {
-				changed++
-				delete(l.keys, k)
-				l.hot.Remove(ele)
-			}
-		}
+		changed = l.impl.Delete(key...)
 	} else {
 		e = ErrAlreadyClosed
 	}
@@ -216,7 +103,7 @@ func (l *LRU) Delete(key ...interface{}) (changed int, e error) {
 func (l *LRU) Len() (count int, e error) {
 	l.m.Lock()
 	if l.done == 0 {
-		count = l.hot.Len()
+		count = l.impl.Len()
 	} else {
 		e = ErrAlreadyClosed
 	}
@@ -228,10 +115,7 @@ func (l *LRU) Len() (count int, e error) {
 func (l *LRU) Clear() (e error) {
 	l.m.Lock()
 	if l.done == 0 {
-		l.hot.Init()
-		for k := range l.keys {
-			delete(l.keys, k)
-		}
+		l.Clear()
 	} else {
 		e = ErrAlreadyClosed
 	}
@@ -250,8 +134,7 @@ func (l *LRU) Close() (e error) {
 			if l.ticker != nil {
 				l.ticker.Stop()
 			}
-			l.keys = nil
-			l.hot = nil
+			l.impl.Clear()
 			return nil
 		}
 	}

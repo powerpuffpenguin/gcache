@@ -9,9 +9,9 @@ var (
 
 type Cache interface {
 	// Add the value to the cache, only when the key does not exist
-	Add(key, value interface{}) (added bool, e error)
+	Add(key, value interface{}) (newkey bool, e error)
 	// Put key value to cache
-	Put(key, value interface{}) (added bool, e error)
+	Put(key, value interface{}) (newkey bool, e error)
 	// Get return cache value, if not exists then return ErrNotExists
 	Get(key interface{}) (value interface{}, e error)
 	// Delete key from cache
