@@ -37,9 +37,10 @@ func NewLRU(opt ...LRUOption) (lru *LRU) {
 		o.apply(&opts)
 	}
 	lru = &LRU{
-		opts: opts,
-		keys: make(map[interface{}]*list.Element, opts.capacity),
-		hot:  list.New(),
+		opts:   opts,
+		keys:   make(map[interface{}]*list.Element, opts.capacity),
+		hot:    list.New(),
+		closed: make(chan struct{}),
 	}
 	if opts.expiry > 0 {
 		ticker := time.NewTicker(opts.clear)
@@ -63,18 +64,23 @@ func (l *LRU) clear(ch <-chan time.Time) {
 }
 func (l *LRU) unsafeClear() {
 	var (
-		ele *list.Element
-		v   *lruValue
+		ele  *list.Element
+		v    *lruValue
+		hot  = l.hot
+		keys = l.keys
 	)
+	if hot == nil {
+		return
+	}
 	for {
-		ele = l.hot.Front()
+		ele = hot.Front()
 		if ele == nil {
 			break
 		}
 		v = ele.Value.(*lruValue)
 		if v.IsDeleted() {
 			l.hot.Remove(ele)
-			delete(l.keys, v.Key)
+			delete(keys, v.Key)
 		} else {
 			break
 		}
