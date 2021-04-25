@@ -9,7 +9,7 @@ type Cache interface {
 	// Add the value to the cache, only when the key does not exist
 	Add(key, value interface{}) (added bool)
 	// Put key value to cache
-	Put(key, value interface{}) (added bool)
+	Put(key, value interface{})
 	// Get return cache value
 	Get(key interface{}) (value interface{}, exists bool)
 	// BatchPut pairs to cache
@@ -31,7 +31,7 @@ type LowCache interface {
 	// Add the value to the cache, only when the key does not exist
 	Add(key, value interface{}) (added bool)
 	// Put key value to cache
-	Put(key, value interface{}) (added bool)
+	Put(key, value interface{}) (delkey, delval interface{}, deleted bool)
 	// Get return cache value
 	Get(key interface{}) (value interface{}, exists bool)
 	// Delete key from cache

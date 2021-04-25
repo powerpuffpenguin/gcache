@@ -79,8 +79,7 @@ func TestLRU(t *testing.T) {
 		gcache.WithLRUExpiry(duration),
 	)
 	for i := 0; i < count; i++ {
-		added := l.Put(i, i)
-		assert.True(t, added)
+		l.Put(i, i)
 		size := l.Len()
 		assert.Equal(t, size, i+1)
 	}
@@ -107,14 +106,12 @@ func TestLRU(t *testing.T) {
 		gcache.WithLRUClear(duration),
 	)
 	for i := 0; i < count; i++ {
-		added := l.Put(i, i)
-		assert.True(t, added)
+		l.Put(i, i)
 		size := l.Len()
 		assert.Equal(t, size, i+1)
 	}
 	time.Sleep(duration / 2)
-	added := l.Put("ok", "value")
-	assert.True(t, added)
+	l.Put("ok", "value")
 	size = l.Len()
 	assert.Equal(t, size, count+1)
 	time.Sleep(duration/2 + duration/3)

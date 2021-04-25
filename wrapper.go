@@ -22,9 +22,9 @@ func (w *wrapper) Add(key, value interface{}) (added bool) {
 }
 
 // Put key value to cache
-func (w *wrapper) Put(key, value interface{}) (added bool) {
+func (w *wrapper) Put(key, value interface{}) {
 	w.m.Lock()
-	added = w.impl.Put(key, value)
+	w.impl.Put(key, value)
 	w.m.Unlock()
 	return
 }

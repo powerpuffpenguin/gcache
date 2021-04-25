@@ -53,7 +53,7 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 		kv.Count++
 		l.history.Delete(key)
 		if kv.Count >= l.k {
-			added = l.lru.Put(key, value)
+			added = l.lru.Add(key, value)
 		} else {
 			l.history.Put(key, kv)
 		}
@@ -72,7 +72,7 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 }
 
 // Put key value to cache
-func (l *LowLRUK) Put(key, value interface{}) (added bool) {
+func (l *LowLRUK) Put(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	_, exists := l.lru.Get(key)
 	if exists {
 		l.lru.Put(key, value)
@@ -87,7 +87,7 @@ func (l *LowLRUK) Put(key, value interface{}) (added bool) {
 		kv.Count++
 		l.history.Delete(key)
 		if kv.Count >= l.k {
-			added = l.lru.Put(key, value)
+			delkey, delval, deleted = l.lru.Put(key, value)
 		} else {
 			l.history.Put(key, kv)
 		}
@@ -96,10 +96,12 @@ func (l *LowLRUK) Put(key, value interface{}) (added bool) {
 			Count: 1,
 			Key:   key,
 		}
-		if !l.historyOnlyKey {
+		if l.historyOnlyKey {
+			l.history.Put(key, kv)
+		} else {
 			kv.Value = value
+			delkey, delval, deleted = l.history.Put(key, kv)
 		}
-		l.history.Put(key, kv)
 	}
 	return
 }

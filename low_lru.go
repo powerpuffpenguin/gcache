@@ -73,11 +73,14 @@ func (l *LowLRU) Add(key, value interface{}) (added bool) {
 	}
 	return
 }
-func (l *LowLRU) add(key, value interface{}) {
+func (l *LowLRU) add(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	// capacity limit reached, pop front
-	for l.hot.Len() >= l.opts.capacity {
+	if l.hot.Len() >= l.opts.capacity {
+		deleted = true
 		ele := l.hot.Front()
 		v := ele.Value.(*cacheValue)
+		delkey = v.Key
+		delval = v.Value
 		delete(l.keys, v.Key)
 		l.hot.Remove(ele)
 	}
@@ -101,20 +104,16 @@ func (l *LowLRU) moveHot(ele *list.Element) {
 	l.keys[v.Key] = l.hot.PushBack(v)
 }
 
-func (l *LowLRU) Put(key, value interface{}) (added bool) {
+func (l *LowLRU) Put(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	ele, exists := l.keys[key]
 	if exists {
 		// put
 		v := ele.Value.(*cacheValue)
-		if v.IsDeleted() {
-			added = true
-		}
 		v.Value = value
 		// move hot
 		l.moveHot(ele)
 	} else {
-		added = true
-		l.add(key, value)
+		delkey, delval, deleted = l.add(key, value)
 	}
 	return
 }
