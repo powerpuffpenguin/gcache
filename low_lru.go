@@ -16,22 +16,27 @@ func (v *cacheValue) IsDeleted() bool {
 		!v.Deadline.After(time.Now())
 }
 
-// reserved internal lru algorithm implementation
-type lru struct {
-	opts *lruOptions
-
-	keys map[interface{}]*list.Element
-	hot  *list.List
+// A low-level implementation of lru, use LRU unless you know exactly what you are doing.
+type LowLRU struct {
+	capacity int
+	expiry   time.Duration
+	keys     map[interface{}]*list.Element
+	hot      *list.List
 }
 
-func newLRU(opts *lruOptions) *lru {
-	return &lru{
-		opts: opts,
-		keys: make(map[interface{}]*list.Element, opts.capacity),
-		hot:  list.New(),
+// NewLowLRU create a low-level lru, use NewLRU unless you know exactly what you are doing.
+func NewLowLRU(capacity int, expiry time.Duration) *LowLRU {
+	if capacity < 1 {
+		panic(`lru capacity must > 0`)
+	}
+	return &LowLRU{
+		capacity: capacity,
+		expiry:   expiry,
+		keys:     make(map[interface{}]*list.Element, capacity),
+		hot:      list.New(),
 	}
 }
-func (l *lru) ClearExpired() {
+func (l *LowLRU) ClearExpired() {
 	var (
 		ele  *list.Element
 		v    *cacheValue
@@ -54,24 +59,24 @@ func (l *lru) ClearExpired() {
 }
 
 // Add the value to the cache, only when the key does not exist
-func (l *lru) Add(key, value interface{}) (newkey bool) {
+func (l *LowLRU) Add(key, value interface{}) (added bool) {
 	ele, exists := l.keys[key]
 	if exists {
 		v := ele.Value.(*cacheValue)
 		if v.IsDeleted() {
-			newkey = true
+			added = true
 			v.Value = value
 			l.moveHot(ele)
 		}
 	} else {
-		newkey = true
+		added = true
 		l.add(key, value)
 	}
 	return
 }
-func (l *lru) add(key, value interface{}) {
+func (l *LowLRU) add(key, value interface{}) {
 	// capacity limit reached, pop front
-	for l.hot.Len() >= l.opts.capacity {
+	for l.hot.Len() >= l.capacity {
 		ele := l.hot.Front()
 		v := ele.Value.(*cacheValue)
 		delete(l.keys, v.Key)
@@ -82,41 +87,41 @@ func (l *lru) add(key, value interface{}) {
 		Key:   key,
 		Value: value,
 	}
-	if l.opts.expiry > 0 {
-		v.Deadline = time.Now().Add(l.opts.expiry)
+	if l.expiry > 0 {
+		v.Deadline = time.Now().Add(l.expiry)
 	}
 	l.keys[key] = l.hot.PushBack(v)
 	return
 }
-func (l *lru) moveHot(ele *list.Element) {
+func (l *LowLRU) moveHot(ele *list.Element) {
 	v := ele.Value.(*cacheValue)
 	l.hot.Remove(ele)
-	if l.opts.expiry > 0 {
-		v.Deadline = time.Now().Add(l.opts.expiry)
+	if l.expiry > 0 {
+		v.Deadline = time.Now().Add(l.expiry)
 	}
 	l.keys[v.Key] = l.hot.PushBack(v)
 }
 
-func (l *lru) Put(key, value interface{}) (newkey bool) {
+func (l *LowLRU) Put(key, value interface{}) (added bool) {
 	ele, exists := l.keys[key]
 	if exists {
 		// put
 		v := ele.Value.(*cacheValue)
 		if v.IsDeleted() {
-			newkey = true
+			added = true
 		}
 		v.Value = value
 		// move hot
 		l.moveHot(ele)
 	} else {
-		newkey = true
+		added = true
 		l.add(key, value)
 	}
 	return
 }
 
 // Get return cache value
-func (l *lru) Get(key interface{}) (value interface{}, exists bool) {
+func (l *LowLRU) Get(key interface{}) (value interface{}, exists bool) {
 	ele, exists := l.keys[key]
 	if !exists {
 		return
@@ -134,7 +139,7 @@ func (l *lru) Get(key interface{}) (value interface{}, exists bool) {
 	l.moveHot(ele)
 	return
 }
-func (l *lru) Delete(key ...interface{}) (changed int) {
+func (l *LowLRU) Delete(key ...interface{}) (changed int) {
 	var (
 		ele    *list.Element
 		exists bool
@@ -150,11 +155,11 @@ func (l *lru) Delete(key ...interface{}) (changed int) {
 	return
 }
 
-func (l *lru) Len() int {
+func (l *LowLRU) Len() int {
 	return l.hot.Len()
 }
 
-func (l *lru) Clear() (e error) {
+func (l *LowLRU) Clear() {
 	l.hot.Init()
 	for k := range l.keys {
 		delete(l.keys, k)

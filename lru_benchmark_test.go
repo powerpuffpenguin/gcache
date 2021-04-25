@@ -20,7 +20,7 @@ func BenchmarkLruNotFoundAdd(b *testing.B) {
 
 	fn := func(id int) {
 		for i := 0; i < b.N; i++ {
-			add, _ := l.Add(i, i+id)
+			add := l.Add(i, i+id)
 			if add {
 				atomic.AddInt32(&added, 1)
 			} else {
@@ -43,5 +43,4 @@ func BenchmarkLruNotFoundAdd(b *testing.B) {
 	go fn(0x8800)
 	go fn(0x9900)
 	finish.Wait()
-
 }
