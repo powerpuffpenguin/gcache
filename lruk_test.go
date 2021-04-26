@@ -8,6 +8,56 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestLRU_K3(t *testing.T) {
+	var (
+		l gcache.Cache
+		h gcache.LowCache
+	)
+	h = gcache.NewLowLRU(gcache.WithLowLRUCapacity(3))
+	// history value
+	l = gcache.NewLRUK(
+		gcache.WithLRUK(3),
+		gcache.WithLRUKHistoryOnlyKey(false),
+		gcache.WithLRUKHistory(h),
+		gcache.WithLRUKCapacity(3),
+	)
+	for i := 0; i < 6; i++ {
+		added := l.Add(i, i)
+		assert.True(t, added)
+		if i < 3 {
+			assert.Equal(t, i+1, l.Len())
+
+			val, exists := l.Get(i)
+			assert.True(t, exists)
+			assert.Equal(t, val, i)
+			assert.Equal(t, 1, h.Len())
+
+			val, exists = l.Get(i)
+			assert.True(t, exists)
+			assert.Equal(t, val, i)
+			assert.Equal(t, 0, h.Len())
+		} else {
+			assert.Equal(t, i-3+1, h.Len())
+		}
+	}
+	for j := 0; j < 2; j++ {
+		for i := 0; i < 6; i++ {
+			val, exists := l.Get(i)
+			assert.True(t, exists)
+			assert.Equal(t, val, i)
+		}
+	}
+
+	for i := 0; i < 6; i++ {
+		val, exists := l.Get(i)
+		if i < 3 {
+			assert.False(t, exists)
+		} else {
+			assert.True(t, exists)
+			assert.Equal(t, val, i)
+		}
+	}
+}
 func TestLRU_K2(t *testing.T) {
 	var (
 		l gcache.Cache
@@ -162,7 +212,7 @@ func TestLRU_K1(t *testing.T) {
 
 	// expire
 	count = 3
-	duration := time.Millisecond * 10
+	duration := time.Millisecond * 10 * 5
 	l = gcache.NewLRUK(
 		gcache.WithLRUK(1),
 		gcache.WithLRUKCapacity(count),
