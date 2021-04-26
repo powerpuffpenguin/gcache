@@ -132,7 +132,7 @@ func TestLRU(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, val, "value")
 
-	time.Sleep(duration + duration/3)
+	time.Sleep(duration * 2)
 	size = l.Len()
 	assert.Equal(t, size, 0)
 

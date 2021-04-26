@@ -55,7 +55,7 @@ func (v *baseLFUValue) GetIndex() int {
 	return v.index
 }
 func (v *baseLFUValue) Increment() {
-	v.index++
+	v.count++
 }
 
 type deadlineLFUValue struct {

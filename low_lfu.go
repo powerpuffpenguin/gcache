@@ -7,7 +7,7 @@ func NewLowLFU(opt ...LowLFUOption) LowCache {
 		o.apply(&opts)
 	}
 	if opts.expiry > 0 {
-		// return newLowLFUEx(opts.capacity, opts.expiry)
+		return newLowLFUEx(opts.capacity, opts.expiry)
 	}
 	return newLowLFU(opts.capacity)
 }
