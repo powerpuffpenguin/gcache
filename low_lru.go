@@ -5,17 +5,6 @@ import (
 	"time"
 )
 
-type cacheValue struct {
-	Key      interface{}
-	Value    interface{}
-	Deadline time.Time
-}
-
-func (v *cacheValue) IsDeleted() bool {
-	return !v.Deadline.IsZero() &&
-		!v.Deadline.After(time.Now())
-}
-
 // A low-level implementation of lru, use LRU unless you know exactly what you are doing.
 type LowLRU struct {
 	opts lowLRUOptions
@@ -38,7 +27,7 @@ func NewLowLRU(opt ...LowLRUOption) *LowLRU {
 func (l *LowLRU) ClearExpired() {
 	var (
 		ele  *list.Element
-		v    *cacheValue
+		v    cacheValue
 		hot  = l.hot
 		keys = l.keys
 	)
@@ -47,10 +36,10 @@ func (l *LowLRU) ClearExpired() {
 		if ele == nil {
 			break
 		}
-		v = ele.Value.(*cacheValue)
+		v = ele.Value.(cacheValue)
 		if v.IsDeleted() {
 			l.hot.Remove(ele)
-			delete(keys, v.Key)
+			delete(keys, v.GetKey())
 		} else {
 			break
 		}
@@ -61,10 +50,10 @@ func (l *LowLRU) ClearExpired() {
 func (l *LowLRU) Add(key, value interface{}) (added bool) {
 	ele, exists := l.keys[key]
 	if exists {
-		v := ele.Value.(*cacheValue)
+		v := ele.Value.(cacheValue)
 		if v.IsDeleted() {
 			added = true
-			v.Value = value
+			v.SetValue(value)
 			l.moveHot(ele)
 		}
 	} else {
@@ -78,38 +67,32 @@ func (l *LowLRU) add(key, value interface{}) (delkey, delval interface{}, delete
 	if l.hot.Len() >= l.opts.capacity {
 		deleted = true
 		ele := l.hot.Front()
-		v := ele.Value.(*cacheValue)
-		delkey = v.Key
-		delval = v.Value
-		delete(l.keys, v.Key)
+		v := ele.Value.(cacheValue)
+		delkey = v.GetKey()
+		delval = v.GetValue()
+		delete(l.keys, delkey)
 		l.hot.Remove(ele)
 	}
 	// new value
-	v := &cacheValue{
-		Key:   key,
-		Value: value,
-	}
-	if l.opts.expiry > 0 {
-		v.Deadline = time.Now().Add(l.opts.expiry)
-	}
+	v := newValue(key, value, l.opts.expiry)
 	l.keys[key] = l.hot.PushBack(v)
 	return
 }
 func (l *LowLRU) moveHot(ele *list.Element) {
-	v := ele.Value.(*cacheValue)
+	v := ele.Value.(cacheValue)
 	l.hot.Remove(ele)
 	if l.opts.expiry > 0 {
-		v.Deadline = time.Now().Add(l.opts.expiry)
+		v.SetDeadline(time.Now().Add(l.opts.expiry))
 	}
-	l.keys[v.Key] = l.hot.PushBack(v)
+	l.keys[v.GetKey()] = l.hot.PushBack(v)
 }
 
 func (l *LowLRU) Put(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	ele, exists := l.keys[key]
 	if exists {
 		// put
-		v := ele.Value.(*cacheValue)
-		v.Value = value
+		v := ele.Value.(cacheValue)
+		v.SetKey(value)
 		// move hot
 		l.moveHot(ele)
 	} else {
@@ -124,14 +107,14 @@ func (l *LowLRU) Get(key interface{}) (value interface{}, exists bool) {
 	if !exists {
 		return
 	}
-	v := ele.Value.(*cacheValue)
+	v := ele.Value.(cacheValue)
 	if v.IsDeleted() {
 		delete(l.keys, key)
 		l.hot.Remove(ele)
 		exists = false
 		return
 	}
-	value = v.Value
+	value = v.GetValue()
 
 	// move hot
 	l.moveHot(ele)
