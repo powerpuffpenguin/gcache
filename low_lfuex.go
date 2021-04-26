@@ -5,40 +5,41 @@ import (
 	"time"
 )
 
-type lrufifo struct {
+type lowLFUEx struct {
 	keys     map[interface{}]*list.Element
-	hot      *list.List
-	expiry   time.Duration
+	hot      *lfuHeap
+	list     *list.List
 	capacity int
-	lru      bool
+	expiry   time.Duration
 }
 
-func newLRUFIFO(lru bool, capacity int, expiry time.Duration) *lrufifo {
-	return &lrufifo{
+func newLowLFUEx(capacity int, expiry time.Duration) *lowLFUEx {
+	return &lowLFUEx{
 		keys:     make(map[interface{}]*list.Element, capacity),
-		hot:      list.New(),
-		expiry:   expiry,
+		hot:      newLFUHeap(capacity),
+		list:     list.New(),
 		capacity: capacity,
-		lru:      lru,
+		expiry:   expiry,
 	}
 }
-
-func (l *lrufifo) ClearExpired() {
+func (l *lowLFUEx) ClearExpired() {
 	if l.expiry > 0 {
 		var (
 			ele  *list.Element
-			v    cacheValue
+			v    lfuValue
+			list = l.list
 			hot  = l.hot
 			keys = l.keys
 		)
 		for {
-			ele = hot.Front()
+			ele = list.Front()
 			if ele == nil {
 				break
 			}
-			v = ele.Value.(cacheValue)
+			v = ele.Value.(lfuValue)
 			if v.IsDeleted() {
-				hot.Remove(ele)
+				list.Remove(ele)
+				hot.Remove(v.GetIndex())
 				delete(keys, v.GetKey())
 			} else {
 				break
@@ -48,10 +49,10 @@ func (l *lrufifo) ClearExpired() {
 }
 
 // Add the value to the cache, only when the key does not exist
-func (l *lrufifo) Add(key, value interface{}) (added bool) {
+func (l *lowLFUEx) Add(key, value interface{}) (added bool) {
 	ele, exists := l.keys[key]
 	if exists {
-		v := ele.Value.(cacheValue)
+		v := ele.Value.(lfuValue)
 		if v.IsDeleted() {
 			added = true
 			v.SetValue(value)
@@ -64,37 +65,36 @@ func (l *lrufifo) Add(key, value interface{}) (added bool) {
 	}
 	return
 }
-
-func (l *lrufifo) add(key, value interface{}) (delkey, delval interface{}, deleted bool) {
+func (l *lowLFUEx) add(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	// capacity limit reached, pop front
 	if l.hot.Len() >= l.capacity {
 		deleted = true
-		ele := l.hot.Front()
-		v := ele.Value.(cacheValue)
+		v := l.hot.heap[0]
 		delkey = v.GetKey()
 		delval = v.GetValue()
 		delete(l.keys, delkey)
-		l.hot.Remove(ele)
+		l.list.Remove(l.keys[delkey])
+		l.hot.Remove(0)
 	}
 	// new value
-	v := newValue(key, value, l.expiry)
-	l.keys[key] = l.hot.PushBack(v)
+	v := newLFUValue(key, value, l.expiry)
+	l.keys[key] = l.list.PushBack(v)
+	l.hot.Push(v)
 	return
 }
+func (l *lowLFUEx) moveHot(ele *list.Element) {
+	v := ele.Value.(lfuValue)
+	v.SetDeadline(time.Now().Add(l.expiry))
+	l.list.MoveToBack(ele)
 
-func (l *lrufifo) moveHot(ele *list.Element) {
-	v := ele.Value.(cacheValue)
-	if l.expiry > 0 {
-		v.SetDeadline(time.Now().Add(l.expiry))
-	}
-	l.hot.MoveToBack(ele)
+	v.Increment()
+	l.hot.Fix(v.GetIndex())
 }
-
-func (l *lrufifo) Put(key, value interface{}) (delkey, delval interface{}, deleted bool) {
+func (l *lowLFUEx) Put(key, value interface{}) (delkey, delval interface{}, deleted bool) {
 	ele, exists := l.keys[key]
 	if exists {
 		// put
-		v := ele.Value.(cacheValue)
+		v := ele.Value.(lfuValue)
 		if v.IsDeleted() {
 			v.SetKey(value)
 			// move hot
@@ -118,50 +118,52 @@ func (l *lrufifo) Put(key, value interface{}) (delkey, delval interface{}, delet
 }
 
 // Get return cache value
-func (l *lrufifo) Get(key interface{}) (value interface{}, exists bool) {
+func (l *lowLFUEx) Get(key interface{}) (value interface{}, exists bool) {
 	ele, exists := l.keys[key]
 	if !exists {
 		return
 	}
-	v := ele.Value.(cacheValue)
+	v := ele.Value.(lfuValue)
 	if v.IsDeleted() {
 		delete(l.keys, key)
-		l.hot.Remove(ele)
+		l.list.Remove(ele)
+		l.hot.Remove(v.GetIndex())
 		exists = false
 		l.ClearExpired()
 		return
 	}
 	value = v.GetValue()
 
-	// fifo not need move hot
-	if l.lru {
-		l.moveHot(ele)
-	}
+	// move hot
+	l.moveHot(ele)
 	return
 }
-
-func (l *lrufifo) Delete(key ...interface{}) (changed int) {
+func (l *lowLFUEx) Delete(key ...interface{}) (changed int) {
 	var (
 		ele    *list.Element
 		exists bool
+		v      lfuValue
 	)
 	for _, k := range key {
 		ele, exists = l.keys[k]
 		if exists {
+			v = ele.Value.(lfuValue)
 			changed++
 			delete(l.keys, k)
-			l.hot.Remove(ele)
+			l.list.Remove(ele)
+			l.hot.Remove(v.GetIndex())
 		}
 	}
 	return
 }
 
-func (l *lrufifo) Len() int {
+func (l *lowLFUEx) Len() int {
 	return l.hot.Len()
 }
 
-func (l *lrufifo) Clear() {
-	l.hot.Init()
+func (l *lowLFUEx) Clear() {
+	l.list.Init()
+	l.hot.Clear()
 	for k := range l.keys {
 		delete(l.keys, k)
 	}
