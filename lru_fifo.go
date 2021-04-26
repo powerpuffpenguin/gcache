@@ -54,6 +54,7 @@ func (l *lrufifo) Add(key, value interface{}) (added bool) {
 			added = true
 			v.SetValue(value)
 			l.moveHot(ele)
+			l.ClearExpired()
 		}
 	} else {
 		added = true
@@ -113,6 +114,7 @@ func (l *lrufifo) Get(key interface{}) (value interface{}, exists bool) {
 		delete(l.keys, key)
 		l.hot.Remove(ele)
 		exists = false
+		l.ClearExpired()
 		return
 	}
 	value = v.GetValue()
