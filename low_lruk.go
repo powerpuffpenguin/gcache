@@ -119,7 +119,7 @@ func (l *LowLRUK) Get(key interface{}) (value interface{}, exists bool) {
 
 		if l.opts.historyOnlyKey {
 			// mov to hot
-			if kv.Count<l.opts.k-1{
+			if kv.Count < l.opts.k-1 {
 				kv.Count++
 			}
 			l.history.Put(key, kv)

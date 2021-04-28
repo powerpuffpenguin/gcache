@@ -69,7 +69,6 @@ func TestLRU_K2(t *testing.T) {
 		gcache.WithLowLRUCapacity(3),
 	)
 	l = gcache.NewLRUK(
-		gcache.WithLRUKLRU(lru),
 		gcache.WithLRUK(2),
 		gcache.WithLRUKHistoryOnlyKey(true),
 		gcache.WithLRUKHistory(h),
