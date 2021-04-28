@@ -24,6 +24,7 @@ func TestLRU_K3(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		added := l.Add(i, i)
 		assert.True(t, added)
+
 		if i < 3 {
 			assert.Equal(t, i+1, l.Len())
 
@@ -40,6 +41,7 @@ func TestLRU_K3(t *testing.T) {
 			assert.Equal(t, i-3+1, h.Len())
 		}
 	}
+
 	for j := 0; j < 2; j++ {
 		for i := 0; i < 6; i++ {
 			val, exists := l.Get(i)
@@ -47,7 +49,6 @@ func TestLRU_K3(t *testing.T) {
 			assert.Equal(t, val, i)
 		}
 	}
-
 	for i := 0; i < 6; i++ {
 		val, exists := l.Get(i)
 		if i < 3 {
@@ -64,7 +65,11 @@ func TestLRU_K2(t *testing.T) {
 		h gcache.LowCache
 	)
 	h = gcache.NewLowLRU(gcache.WithLowLRUCapacity(3))
+	lru := gcache.NewLowLRU(
+		gcache.WithLowLRUCapacity(3),
+	)
 	l = gcache.NewLRUK(
+		gcache.WithLRUKLRU(lru),
 		gcache.WithLRUK(2),
 		gcache.WithLRUKHistoryOnlyKey(true),
 		gcache.WithLRUKHistory(h),
@@ -84,14 +89,16 @@ func TestLRU_K2(t *testing.T) {
 		}
 		for j := 0; j < size; j++ {
 			key := i - size + 1 + j
-			_, exists := l.Get(key)
+			_, exists := lru.Get(key)
 			assert.False(t, exists)
 		}
 	}
+
 	for i := 0; i < 4; i++ {
 		added := l.Add(i, i)
 		assert.False(t, added)
 	}
+
 	for i := 1; i < 4; i++ {
 		added := l.Add(i, i)
 		assert.True(t, added)

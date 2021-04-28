@@ -65,7 +65,7 @@ func (l *lowLFU) Put(key, value interface{}) (delkey, delval interface{}, delete
 		delval = v.GetValue()
 
 		// put
-		v.SetKey(value)
+		v.SetValue(value)
 		// move hot
 		l.moveHot(v)
 	} else {

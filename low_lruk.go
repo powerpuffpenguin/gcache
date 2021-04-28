@@ -50,8 +50,8 @@ func (l *LowLRUK) Add(key, value interface{}) (added bool) {
 	if exists {
 		kv := v.(kValue)
 		kv.Count++
-		l.history.Delete(key)
 		if kv.Count >= l.opts.k {
+			l.history.Delete(key)
 			added = l.lru.Add(key, value)
 		} else {
 			l.history.Put(key, kv)
@@ -85,8 +85,8 @@ func (l *LowLRUK) Put(key, value interface{}) (delkey, delval interface{}, delet
 	if exists {
 		kv := v.(kValue)
 		kv.Count++
-		l.history.Delete(key)
 		if kv.Count >= l.opts.k {
+			l.history.Delete(key)
 			delkey, delval, deleted = l.lru.Put(key, value)
 		} else {
 			l.history.Put(key, kv)
@@ -116,15 +116,18 @@ func (l *LowLRUK) Get(key interface{}) (value interface{}, exists bool) {
 	if ok {
 		kv := v.(kValue)
 		value = kv.Value
-		l.history.Delete(key)
 
 		if l.opts.historyOnlyKey {
 			// mov to hot
+			if kv.Count<l.opts.k-1{
+				kv.Count++
+			}
 			l.history.Put(key, kv)
 		} else {
 			exists = true
 			kv.Count++
 			if kv.Count >= l.opts.k {
+				l.history.Delete(key)
 				l.lru.Put(key, kv.Value)
 			} else {
 				l.history.Put(key, kv)

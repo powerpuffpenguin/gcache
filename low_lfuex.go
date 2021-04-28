@@ -96,7 +96,7 @@ func (l *lowLFUEx) Put(key, value interface{}) (delkey, delval interface{}, dele
 		// put
 		v := ele.Value.(lfuValue)
 		if v.IsDeleted() {
-			v.SetKey(value)
+			v.SetValue(value)
 			// move hot
 			l.moveHot(ele)
 
@@ -106,7 +106,7 @@ func (l *lowLFUEx) Put(key, value interface{}) (delkey, delval interface{}, dele
 			delkey = key
 			delval = v.GetValue()
 
-			v.SetKey(value)
+			v.SetValue(value)
 			// move hot
 			l.moveHot(ele)
 		}

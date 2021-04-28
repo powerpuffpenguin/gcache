@@ -68,7 +68,14 @@ func WithLRUK(k int) LRUKOption {
 	})
 }
 
-// WithLowLRUKHistory if history is nil use lru-1, default is nil.
+// WithLRUKLRU if lru is nil auto create.
+func WithLRUKLRU(lru LowCache) LRUKOption {
+	return newFuncLRUKOption(func(po *lrukOptions) {
+		po.lru = lru
+	})
+}
+
+// WithLRUKHistory if history is nil use lru-1, default is nil.
 func WithLRUKHistory(history LowCache) LRUKOption {
 	return newFuncLRUKOption(func(po *lrukOptions) {
 		po.history = history

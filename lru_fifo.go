@@ -96,7 +96,7 @@ func (l *lrufifo) Put(key, value interface{}) (delkey, delval interface{}, delet
 		// put
 		v := ele.Value.(cacheValue)
 		if v.IsDeleted() {
-			v.SetKey(value)
+			v.SetValue(value)
 			// move hot
 			l.moveHot(ele)
 
@@ -106,7 +106,7 @@ func (l *lrufifo) Put(key, value interface{}) (delkey, delval interface{}, delet
 			delkey = key
 			delval = v.GetValue()
 
-			v.SetKey(value)
+			v.SetValue(value)
 			// move hot
 			l.moveHot(ele)
 		}
